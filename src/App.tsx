@@ -73,6 +73,8 @@ export default function App() {
       .then(setTotalSupply)
       .catch(() => setTotalSupply(0));
 
+    let retryTimer: ReturnType<typeof setTimeout>;
+
     const waitAndSubscribe = () => {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -81,12 +83,15 @@ export default function App() {
         ws.addEventListener("open", () => subscribe(poolAddress), {
           once: true,
         });
+      } else {
+        retryTimer = setTimeout(waitAndSubscribe, 500);
       }
     };
 
     waitAndSubscribe();
 
     return () => {
+      clearTimeout(retryTimer);
       unsubscribe(poolAddress);
     };
   }, [poolAddress, subscribe, unsubscribe, wsRef]);
