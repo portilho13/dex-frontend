@@ -6,90 +6,89 @@ React frontend for the dex price chart viewer. Renders live candlestick charts, 
 
 ```
 src/
-├── main.tsx              # React entry point, mounts App
-├── index.css             # Global styles (dark theme reset)
-├── App.tsx               # Main layout, WebSocket owner, state management
-├── Chart.tsx             # Chart wrapper: fetches candles, wires live ticks, OHLC header
-├── CoinInfo.tsx          # Token info bar: image, name, price, market cap, volume
-├── TradesTable.tsx       # Trade history table with live + historical data
+├── main.tsx                # React entry point
+├── index.css               # Global styles (dark theme)
+├── App.tsx                 # Layout, WebSocket owner, state management
+├── Chart.tsx               # Chart container, OHLC header, timeframe definitions
+├── CoinInfo.tsx            # Token info bar (image, name, price, stats)
+├── TradesTable.tsx         # Trade history table (live + historical)
 └── hooks/
-    ├── useChart.ts       # TradingView lightweight-charts lifecycle, candle/volume rendering
-    └── useWebSocket.ts   # WebSocket connection, subscribe/unsubscribe, message routing
+    ├── useChart.ts         # lightweight-charts lifecycle, candle + volume rendering
+    └── useWebSocket.ts     # WebSocket connection, message routing
 ```
 
 ## How It Works
 
 ### App.tsx — State Owner
 
-The top-level component that owns all shared state:
+Top-level component that owns all shared state:
 
-- **WebSocket connection** — created once, persists across timeframe/mode changes
-- **Pool address** — entered by the user, triggers data fetching and WebSocket subscription
-- **Timeframe selection** — 1s, 1m, 5m, 15m, 1H, 4H, 12H, 1D
-- **Price/MCap mode** — toggles between raw price and market cap (price x total supply)
-- **Live trades** — received via WebSocket, merged with historical data in TradesTable
+- **WebSocket** — single connection, persists across timeframe/mode changes
+- **Pool address** — preloaded with a default, or entered by the user
+- **Timeframe** — 1s, 1m, 5m, 15m, 1H, 4H, 12H, 1D
+- **Price/MCap mode** — raw price or price multiplied by total supply
+- **Live trades** — received via WebSocket, merged into TradesTable
 
-When a user enters a pool address, App subscribes on the WebSocket and fetches the token's total supply from `/pool-info`. Messages from the WebSocket are routed by type: `"price"` goes to the chart, `"trade"` goes to the trades table.
+WebSocket messages are routed by type: `"price"` updates the chart, `"trade"` prepends to the trades table. The WebSocket subscribe retries every 500ms until the connection is ready, handling the case where the page loads with a preloaded pool address before the WS connects.
 
 ### Chart.tsx — Candlestick Chart
 
-Fetches historical OHLCV candles from `/ohlcv` and renders them using the `useChart` hook. Refetches every 30 seconds as a fallback for live updates.
+Fetches historical candles from `/ohlcv` once on mount. After that, all new candles are formed from live WebSocket price ticks.
 
-Features:
-- **Timeframe buttons** — each triggers a fresh fetch with different aggregate/timeframe params
-- **OHLC header** — shows Open, High, Low, Close, Volume, and % change on crosshair hover
-- **Log scale toggle** — switches between linear and logarithmic Y-axis
-- **Price/MCap multiplier** — when MCap mode is active, all OHLC values are multiplied by total supply
-- **Live tick sanity check** — rejects ticks that deviate more than 100x from the last historical close
-
-The `key` prop includes pool + timeframe + mode, so changing any of these fully remounts the chart with fresh data.
+- **Timeframe buttons** — each remounts the chart via React `key` prop, fetching fresh history
+- **OHLC header** — shows O/H/L/C, volume, % change on crosshair hover
+- **Log scale toggle** — linear vs logarithmic Y-axis
+- **MCap multiplier** — multiplies all OHLC values by total supply when active
 
 ### useChart.ts — Chart Engine
 
-Manages the TradingView lightweight-charts instance:
+Manages the TradingView lightweight-charts instance with two series:
 
-- Creates the chart and two series: candlestick (price) + histogram (volume)
-- `setCandles()` — replaces all chart data, sorts ascending, sets visible range to last 120 candles
-- `updatePrice()` — updates the rightmost candle in real-time, tracking OHLC state across ticks within the same time bucket
-- `toggleLogScale()` — switches the right price scale between linear and log
-- Crosshair move subscription reports OHLC info back to the parent via callback
-- MCap mode uses a custom price formatter with K/M/B suffixes
+- **Candlestick** — price data with 8 decimal precision (or K/M/B formatter in MCap mode)
+- **Histogram** — volume bars pinned to bottom 15%
+
+Live candle formation: each tick is bucketed into a time window based on the selected interval. Same bucket → updates high/low/close. New bucket → opens a new candle. The chart scrolls to show the last 120 candles on initial load.
 
 ### useWebSocket.ts — WebSocket Hook
 
-Single WebSocket connection shared across the app:
+Single connection at `ws://{host}/ws`. Supports two message types:
 
-- Connects to `ws://{host}/ws` on mount
-- `subscribe(pool)` / `unsubscribe(pool)` — send JSON messages to the backend
-- Routes all incoming messages through a callback
-- Handles cleanup on unmount
+- `"price"` — `{pool, price, timestamp}` for live chart updates
+- `"trade"` — `{pool, kind, volumeBase, volumeSol, txHash, maker, timestamp}` for live trade entries
 
 ### CoinInfo.tsx — Token Info Bar
 
-Fetches from `/pool-info` on pool change and displays:
-- Token image + name + symbol
-- Current USD price
-- 24h price change (green/red)
-- Market cap, FDV, 24h volume, liquidity
+Fetches from `/pool-info` and displays token image, name, symbol, price, 24h change, market cap, FDV, volume, and liquidity. Falls back to showing the pool address if the API fails (pool not on GeckoTerminal).
 
 ### TradesTable.tsx — Trade History
 
-Combines two data sources:
-- **Historical trades** — fetched from `/trades` every 15 seconds
-- **Live trades** — received via WebSocket from App
+Merges two sources:
 
-Trades are merged and deduplicated by transaction hash. Live trades appear at the top. Each row shows date (relative), type (Buy/Sell), USD amount, token amount, SOL amount, price, trader wallet (links to Solscan), and transaction link (links to Solscan).
+- **Historical** — polled from `/trades` every 15 seconds
+- **Live** — received via WebSocket from App
+
+Deduplicated by transaction hash. Each row links the trader to Solscan account page and the transaction to Solscan tx page. Auto-scrollable with sticky header.
+
+## Limitations
+
+- **Historical data depends on GeckoTerminal** — if a pool isn't indexed by GeckoTerminal, only live WebSocket candles will show (no history)
+- **No drawing tools or indicators** — lightweight-charts is the free/open-source TradingView library. Trendlines, RSI, MACD etc. require the commercial TradingView Charting Library
+- **Live candle accuracy** — candles are built from 1-second price snapshots, not from actual trade data. Wicks may miss intra-second price extremes
+- **MCap calculation** — total supply is derived from FDV/price via GeckoTerminal. If GeckoTerminal doesn't have the pool, MCap mode shows raw price instead
+- **Trade amounts** — live trades from WebSocket only include signature and buy/sell type, not exact amounts. Full trade details come from GeckoTerminal polling with 15s delay
+- **Single pool view** — only one pool can be viewed at a time. No multi-chart or watchlist
+- **No persistent state** — refreshing the page resets to the default pool and timeframe
 
 ## Dev Proxy
 
-`vite.config.ts` proxies API routes to the Go backend during development:
+`vite.config.ts` proxies these routes to the Go backend at `localhost:8080`:
 
-| Path | Target |
+| Path | Type |
 |---|---|
-| `/ws` | `http://localhost:8080` (WebSocket) |
-| `/ohlcv` | `http://localhost:8080` |
-| `/trades` | `http://localhost:8080` |
-| `/pool-info` | `http://localhost:8080` |
+| `/ws` | WebSocket |
+| `/ohlcv` | REST |
+| `/trades` | REST |
+| `/pool-info` | REST |
 
 ## Running
 
@@ -100,10 +99,10 @@ npm run dev
 
 Open `http://localhost:5173`. Requires the backend running on port 8080.
 
-## Building for Production
+## Building
 
 ```bash
 npm run build
 ```
 
-Output goes to `dist/`. Serve with Nginx or any static file server.
+Output in `dist/`. Serve with Nginx or any static file server.
