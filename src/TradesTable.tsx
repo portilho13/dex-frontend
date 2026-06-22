@@ -73,7 +73,7 @@ const headerStyle: React.CSSProperties = {
 
 export default function TradesTable({ poolAddress, liveTrades }: TradesTableProps) {
   const [historicalTrades, setHistoricalTrades] = useState<Trade[]>([]);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
   useEffect(() => {
     fetchTrades(poolAddress).then(setHistoricalTrades).catch(() => {});
@@ -82,7 +82,7 @@ export default function TradesTable({ poolAddress, liveTrades }: TradesTableProp
       fetchTrades(poolAddress).then(setHistoricalTrades).catch(() => {});
     }, 15000);
 
-    return () => clearInterval(intervalRef.current);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [poolAddress]);
 
   const trades = useMemo(() => {
