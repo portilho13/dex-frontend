@@ -97,14 +97,6 @@ export default function Chart({ poolAddress, timeframe, lastTick, multiplier }: 
       .catch(() => {
         loadedRef.current = true;
       });
-
-    const interval = setInterval(() => {
-      fetchCandles(poolAddress, timeframe)
-        .then((candles) => setCandles(applyMultiplier(candles, multiplier)))
-        .catch(() => {});
-    }, 30000);
-
-    return () => clearInterval(interval);
   }, [poolAddress, timeframe, setCandles, multiplier]);
 
   useEffect(() => {

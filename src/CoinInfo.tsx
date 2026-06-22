@@ -62,12 +62,10 @@ export default function CoinInfo({ poolAddress }: CoinInfoProps) {
     fetchPoolInfo(poolAddress).then(setInfo).catch(() => setInfo(null));
   }, [poolAddress]);
 
-  if (!info) return null;
-
-  const change = parseFloat(info.priceChange24h || "0");
+  const change = parseFloat(info?.priceChange24h || "0");
   const changeColor = change >= 0 ? "#00c853" : "#ff1744";
-  const vol = parseFloat(info.volume24h || "0");
-  const liq = parseFloat(info.liquidity || "0");
+  const vol = parseFloat(info?.volume24h || "0");
+  const liq = parseFloat(info?.liquidity || "0");
 
   return (
     <div
@@ -82,7 +80,7 @@ export default function CoinInfo({ poolAddress }: CoinInfoProps) {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {info.baseImage && (
+        {info?.baseImage && (
           <img
             src={info.baseImage}
             alt={info.baseSymbol}
@@ -91,45 +89,51 @@ export default function CoinInfo({ poolAddress }: CoinInfoProps) {
         )}
         <div>
           <div style={{ color: "#fff", fontSize: 16, fontWeight: 600 }}>
-            {info.name || info.baseSymbol}
+            {info?.name || info?.baseSymbol || poolAddress.slice(0, 8) + "..."}
           </div>
-          {info.baseSymbol && (
+          {info?.baseSymbol ? (
             <div style={{ color: "#666", fontSize: 12 }}>{info.baseSymbol}</div>
+          ) : (
+            <div style={{ color: "#444", fontSize: 11 }}>{poolAddress}</div>
           )}
         </div>
       </div>
 
-      <div style={statStyle}>
-        <span style={labelStyle}>Price</span>
-        <span style={valueStyle}>{formatPrice(info.priceUsd)}</span>
-      </div>
+      {info && (
+        <>
+          <div style={statStyle}>
+            <span style={labelStyle}>Price</span>
+            <span style={valueStyle}>{formatPrice(info.priceUsd)}</span>
+          </div>
 
-      <div style={statStyle}>
-        <span style={labelStyle}>24h</span>
-        <span style={{ ...valueStyle, color: changeColor }}>
-          {change >= 0 ? "+" : ""}{change.toFixed(2)}%
-        </span>
-      </div>
+          <div style={statStyle}>
+            <span style={labelStyle}>24h</span>
+            <span style={{ ...valueStyle, color: changeColor }}>
+              {change >= 0 ? "+" : ""}{change.toFixed(2)}%
+            </span>
+          </div>
 
-      <div style={statStyle}>
-        <span style={labelStyle}>Market Cap</span>
-        <span style={valueStyle}>{info.marketCap > 0 ? formatUSD(info.marketCap) : "—"}</span>
-      </div>
+          <div style={statStyle}>
+            <span style={labelStyle}>Market Cap</span>
+            <span style={valueStyle}>{info.marketCap > 0 ? formatUSD(info.marketCap) : "—"}</span>
+          </div>
 
-      <div style={statStyle}>
-        <span style={labelStyle}>FDV</span>
-        <span style={valueStyle}>{info.fdv > 0 ? formatUSD(info.fdv) : "—"}</span>
-      </div>
+          <div style={statStyle}>
+            <span style={labelStyle}>FDV</span>
+            <span style={valueStyle}>{info.fdv > 0 ? formatUSD(info.fdv) : "—"}</span>
+          </div>
 
-      <div style={statStyle}>
-        <span style={labelStyle}>24h Vol</span>
-        <span style={valueStyle}>{vol > 0 ? formatUSD(vol) : "—"}</span>
-      </div>
+          <div style={statStyle}>
+            <span style={labelStyle}>24h Vol</span>
+            <span style={valueStyle}>{vol > 0 ? formatUSD(vol) : "—"}</span>
+          </div>
 
-      <div style={statStyle}>
-        <span style={labelStyle}>Liquidity</span>
-        <span style={valueStyle}>{liq > 0 ? formatUSD(liq) : "—"}</span>
-      </div>
+          <div style={statStyle}>
+            <span style={labelStyle}>Liquidity</span>
+            <span style={valueStyle}>{liq > 0 ? formatUSD(liq) : "—"}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

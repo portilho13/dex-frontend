@@ -220,10 +220,7 @@ export function useChart(
       if (!seriesRef.current) return;
       if (price <= 0) return;
 
-      if (lastCloseRef.current > 0) {
-        const ratio = price / lastCloseRef.current;
-        if (ratio > 100 || ratio < 0.01) return;
-      }
+      lastCloseRef.current = price;
 
       const candleTime =
         Math.floor(timestampMs / 1000 / intervalSeconds) * intervalSeconds;
